@@ -1,9 +1,14 @@
 'use client'
 
-import { useState } from 'react'
-import { MoonIcon, SunIcon, HomeIcon, CloudIcon, CalendarIcon } from '@heroicons/react/24/solid'
+// app/components/HilalApp.tsx
+import { useState, useEffect } from 'react'
+import { MoonIcon, SunIcon, HomeIcon, MapPinIcon, Cog6ToothIcon } from '@heroicons/react/24/solid'
+import { PrayerTimes, Coordinates, CalculationMethod, Madhab } from 'adhan'
+import moment from 'moment-timezone'
 import MoonPhase from './MoonPhase'
-import PrayerTimes from './PrayerTimes'
+import PrayerTimesComponent from './PrayerTimes'
+import QiblaDirection from './QiblaDirection'
+import Settings from './Settings'
 
 interface HilalAppProps {
   lang: string;
@@ -11,12 +16,77 @@ interface HilalAppProps {
 
 const HilalApp: React.FC<HilalAppProps> = ({ lang }) => {
   const [darkMode, setDarkMode] = useState(false)
-  const [currentView, setCurrentView] = useState('home')
+  const [currentView, setCurrentView] = useState<'home' | 'qibla' | 'settings'>('home')
+  const [location, setLocation] = useState<Coordinates | null>(null)
+  const [prayerTimes, setPrayerTimes] = useState<PrayerTimes | null>(null)
+  const [qiblaDirection, setQiblaDirection] = useState<number | null>(null)
+  const [hijriDate, setHijriDate] = useState<string>('')
+  const [calculationMethod, setCalculationMethod] = useState<CalculationMethod>(CalculationMethod.MoonsightingCommittee())
+  const [madhab, setMadhab] = useState<Madhab>(Madhab.Shafi)
 
   const toggleDarkMode = () => setDarkMode(!darkMode)
 
-  // Here you would use the 'lang' prop to determine which translations to use
-  // For now, we'll just use it in a placeholder
+  useEffect(() => {
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const coords = new Coordinates(position.coords.latitude, position.coords.longitude)
+        setLocation(coords)
+        updateCalculations(coords)
+      },
+      (error) => {
+        console.error("Error getting location:", error)
+      }
+    )
+  }, [calculationMethod, madhab])
+
+  const updateCalculations = (coords: Coordinates) => {
+    const date = new Date()
+    const params = calculationMethod
+    params.madhab = madhab
+    const prayerTimes = new PrayerTimes(coords, date, params)
+    setPrayerTimes(prayerTimes)
+
+    const qibla = prayerTimes.qibla()
+    setQiblaDirection(qibla)
+
+    // Calculate Hijri date
+    const hijriDate = moment(date).format('iD iMMMM iYYYY')
+    setHijriDate(hijriDate)
+  }
+
+  const renderView = () => {
+    switch (currentView) {
+      case 'home':
+        return (
+          <>
+            <div className="mb-8">
+              <div className={`flex items-center justify-between ${darkMode ? 'bg-slate-700' : 'bg-cyan-50'} p-6 rounded-xl`}>
+                <MoonPhase phase={0.7} darkMode={darkMode} />
+                <div>
+                  <p className="font-semibold text-lg">Hijri Date</p>
+                  <p className={`text-sm ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>{hijriDate}</p>
+                </div>
+              </div>
+            </div>
+            {prayerTimes && <PrayerTimesComponent darkMode={darkMode} prayerTimes={prayerTimes} />}
+          </>
+        )
+      case 'qibla':
+        return qiblaDirection !== null && <QiblaDirection darkMode={darkMode} direction={qiblaDirection} />
+      case 'settings':
+        return (
+          <Settings
+            darkMode={darkMode}
+            calculationMethod={calculationMethod}
+            setCalculationMethod={setCalculationMethod}
+            madhab={madhab}
+            setMadhab={setMadhab}
+          />
+        )
+      default:
+        return null
+    }
+  }
 
   return (
     <div className={`${darkMode ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-900'} min-h-screen p-4 font-sans transition-colors duration-300`}>
@@ -36,39 +106,33 @@ const HilalApp: React.FC<HilalAppProps> = ({ lang }) => {
           </button>
         </header>
 
-        <div className="mb-8">
-          <div className={`flex items-center justify-between ${darkMode ? 'bg-slate-700' : 'bg-cyan-50'} p-6 rounded-xl`}>
-            <MoonPhase phase={0.7} darkMode={darkMode} />
-            <div>
-              <p className="font-semibold text-lg">Waning Gibbous</p>
-              <p className={`text-sm ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>70% illuminated</p>
-              <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Next new moon in 9 days</p>
-            </div>
-          </div>
-        </div>
+        {renderView()}
 
-        <div className="grid grid-cols-2 gap-4 mb-8">
-          <div className={`${darkMode ? 'bg-slate-700' : 'bg-emerald-100'} p-4 rounded-xl`}>
-            <div className="flex justify-between items-center mb-2">
-              <CloudIcon className={`h-6 w-6 ${darkMode ? 'text-emerald-400' : 'text-emerald-600'}`} />
-            </div>
-            <p className="font-semibold">Next Sighting</p>
-            <p className={`text-lg font-bold ${darkMode ? 'text-emerald-400' : 'text-emerald-600'}`}>Ramadan 1st</p>
-            <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>In 9 days</p>
-          </div>
-          <div className={`${darkMode ? 'bg-slate-700' : 'bg-cyan-100'} p-4 rounded-xl`}>
-            <div className="flex justify-between items-center mb-2">
-              <CalendarIcon className={`h-6 w-6 ${darkMode ? 'text-cyan-400' : 'text-cyan-600'}`} />
-            </div>
-            <p className="font-semibold">Today</p>
-            <p className={`text-lg font-bold ${darkMode ? 'text-cyan-400' : 'text-cyan-600'}`}>Sha'ban 21</p>
-            <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>March 2, 2024</p>
-          </div>
-        </div>
+        <nav className="grid grid-cols-3 gap-4 mt-8">
+          <button
+            onClick={() => setCurrentView('home')}
+            className={`p-2 rounded-lg ${darkMode ? 'bg-slate-700 hover:bg-slate-600' : 'bg-slate-200 hover:bg-slate-300'} transition-colors`}
+          >
+            <HomeIcon className="h-6 w-6 mx-auto" />
+            <span className="text-xs mt-1">Home</span>
+          </button>
+          <button
+            onClick={() => setCurrentView('qibla')}
+            className={`p-2 rounded-lg ${darkMode ? 'bg-slate-700 hover:bg-slate-600' : 'bg-slate-200 hover:bg-slate-300'} transition-colors`}
+          >
+            <MapPinIcon className="h-6 w-6 mx-auto" />
+            <span className="text-xs mt-1">Qibla</span>
+          </button>
+          <button
+            onClick={() => setCurrentView('settings')}
+            className={`p-2 rounded-lg ${darkMode ? 'bg-slate-700 hover:bg-slate-600' : 'bg-slate-200 hover:bg-slate-300'} transition-colors`}
+          >
+            <Cog6ToothIcon className="h-6 w-6 mx-auto" />
+            <span className="text-xs mt-1">Settings</span>
+          </button>
+        </nav>
 
-        <PrayerTimes darkMode={darkMode} />
-
-        <footer className={`text-center text-xs ${darkMode ? 'text-slate-500' : 'text-slate-600'}`}>
+        <footer className={`text-center text-xs ${darkMode ? 'text-slate-500' : 'text-slate-600'} mt-8`}>
           <p>Always verify with local authorities</p>
         </footer>
       </div>
